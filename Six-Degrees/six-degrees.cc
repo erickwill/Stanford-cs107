@@ -39,41 +39,43 @@ static string promptForActor(const string& prompt, const imdb& db)
 
 bool generateShortestPath(string &source, string &target, imdb &db)
 {
-  list<path> partialPaths;
+  list<path> partialPaths; // queue for paths
   set<string> previouslySeenActors;
   set<film> previouslySeenFilms;
 
-  path startPath(source);
-  partialPaths.push_front(startPath);
+  path startPath(source); // partial path
+  partialPaths.push_front(startPath); // add to queue
 
   while (!partialPaths.empty() && partialPaths.front().getLength() <= 5) {
     path frontPath = partialPaths.front();
-    partialPaths.pop_front();
+    partialPaths.pop_front(); // pull off front path
     vector<film> movies;
     db.getCredits(frontPath.getLastPlayer(), movies);
 
+    // look up last actors movies
     for (unsigned int i = 0; i < movies.size(); i++) {
       if (previouslySeenFilms.find(movies[i]) == previouslySeenFilms.end()) {
-	previouslySeenFilms.insert(movies[i]);
+	previouslySeenFilms.insert(movies[i]); // add unseen movie
 	vector<string> cast;
 	db.getCast(movies[i],cast);
 	
+	// look up cast
 	for (unsigned int j = 0; j < cast.size(); j++) {
 	  if (previouslySeenActors.find(cast[j]) == previouslySeenActors.end()) {
-	    previouslySeenActors.insert(cast[j]);
-	    path newPath = frontPath;
-	    newPath.addConnection(movies[i], cast[j]);
-	    if (cast[j] == target) {
+	    previouslySeenActors.insert(cast[j]); // add unseen actor
+	    path newPath = frontPath; // clone partial path
+	    newPath.addConnection(movies[i], cast[j]); // add connection to clone
+	    if (cast[j] == target) { 
 	      cout << newPath << endl;
-	      return true;
+	      return true; // found target
 	    } else
-	      partialPaths.push_back(newPath);
+	      partialPaths.push_back(newPath); // not done, add to end of queue
 	  }
 	}
       }
     }
   }
-  return false;
+  return false; // no connection found
 }
 
 /**
@@ -108,7 +110,7 @@ int main(int argc, const char *argv[])
     if (source == target) {
       cout << "Good one.  This is only interesting if you specify two different people." << endl;
     } else {
-      if (!generateShortestPath(source,target,db))
+      if (!generateShortestPath(source,target,db)) // find shortest path
 	cout << endl << "No path between those two people could be found." << endl << endl;
     }
   }

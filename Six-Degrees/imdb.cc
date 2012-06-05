@@ -13,6 +13,10 @@ using namespace std;
 const char *const imdb::kActorFileName = "actordata";
 const char *const imdb::kMovieFileName = "moviedata";
 
+
+/**
+* Struct for bsearch comparison.
+**/
 struct Key {
   const char *keyString;
   const void *data;
@@ -37,18 +41,18 @@ bool imdb::good() const
 
 int cmp(const void *a, const void *b) 
 {  
-  Key *k = (Key*)a;
-  int *offset = (int*)b;
+  Key *k = (Key*)a; // Key struct
+  int *offset = (int*)b; // pointer to comparing data
   char *test = (char*)k->data + *offset;
   int value =  strcmp(k->keyString, test);
  
-  if (!k->isMovie)
+  if (!k->isMovie) // if it is a film struct, must also check year
     return value;
 
   else if (value == 0){
     char testYearChar;
     int testLen = strlen(test)+1;
-    memcpy(&testYearChar, (char*)k->data + testLen + *offset, sizeof(char));
+    memcpy(&testYearChar, (char*)k->data + testLen + *offset, sizeof(char)); // year byte
     int testYear = (int)testYearChar + 1900;
     int diff = k->year - testYear;
 
@@ -57,79 +61,87 @@ int cmp(const void *a, const void *b)
     else return 0;
 
   } else 
-    return value;
+    return value; // names of films did not match
 }
 
 // you should be implementing these two methods right here... 
 bool imdb::getCredits(const string& player, vector<film>& films) const 
 {
-  int numActors;
+  int numActors; // total actors in data file
   memcpy(&numActors, (int*)actorFile, sizeof(int));
 
-  Key k;
+  Key k; // struct for bsearch comparison
   k.keyString = player.c_str();
   k.data = actorFile;
   k.isMovie = false;
-  int beginActorsOffset = 1;
+  int beginActorsOffset = 1; // account for size storage entry
 
+  // search for k.keyString in actorFile (starting at 1 offset)
+  // search the total number of actors
+  // each entry to be searched is the size of a pointer
   int *ptr = (int*)bsearch(&k, (int*)actorFile+beginActorsOffset, numActors, sizeof(int*), cmp);
   if (ptr == NULL) {
     return false;
   }
 
-  int foundAt = *ptr;
+  int foundAt = *ptr; // found match at this address
   int nameLen = player.length()+1;
-  int nameOffset = nameLen + (nameLen % 2);
+  int nameOffset = nameLen + (nameLen % 2); // actor name padding
   int moviesOffset = foundAt + nameOffset;
   short numMovies;
   memcpy(&numMovies, (char*)actorFile + moviesOffset, sizeof(short));
 
   moviesOffset += sizeof(short);
   if (moviesOffset % 4 != 0)
-    moviesOffset += 2;
+    moviesOffset += 2; // padding for films address
   for (int i = 0; i < numMovies; i++) {
-    film movie;
+    film movie; // new film to pass into vector
     int titleOffset;
+    // total offset = foundAt address + actor name length  + number of movies + (total padding) + (i * sizeof(int))
     memcpy(&titleOffset, (char*)actorFile + moviesOffset + (i * sizeof(int)), sizeof(int));
-    char *movieTitle = (char*)movieFile + titleOffset;
-    char movieDateChar;
+    char *movieTitle = (char*)movieFile + titleOffset; // film title string
+    char movieDateChar; // 1 byte film year
     memcpy(&movieDateChar, (char*)movieFile + titleOffset + strlen(movieTitle)+1, sizeof(char));
-    int movieDate = 1900 + (int)movieDateChar;
+    int movieDate = 1900 + (int)movieDateChar; // cast char to int and add year delta
     movie.title = movieTitle;
     movie.year = movieDate;
-    films.push_back(movie);
+    films.push_back(movie); // add to vector
   }
   return true;
   
  }
 bool imdb::getCast(const film& movie, vector<string>& players) const 
 {
-  Key k;
+  Key k; // struct for bsearch
   k.keyString = movie.title.c_str();
   k.data = movieFile;
-  k.isMovie = true;
+  k.isMovie = true; // will need to compare film.year 
   k.year = movie.year;
 
-  int numMovies;
+  int numMovies; // total number of films
   memcpy(&numMovies, (int*)movieFile, sizeof(int));
-  int beginMoviesOffset = 1;
+  int beginMoviesOffset = 1; // account for first entry storing size
 
+  // search for k.keyString in movieFile (starting at 1 offset)
+  // will need to compare year as well as title
+  // search the total number of films
+  // each entry to be searched is the size of a pointer
   int *ptr = (int*)bsearch(&k, (int*)movieFile + beginMoviesOffset, numMovies, sizeof(int*), cmp);
   if (ptr == NULL) {
     return false;
   }
 
-  int foundAt = *ptr;
+  int foundAt = *ptr; // found film at this address
   int nameLen = movie.title.length()+1;
   int actorsOffset = foundAt + nameLen + sizeof(char);
   if ((nameLen + sizeof(char)) % 2 != 0)
-    actorsOffset++;
+    actorsOffset++; // name padding
 
   short numActors;
   memcpy(&numActors, (char*)movieFile + actorsOffset, sizeof(short));
   actorsOffset += sizeof(short);
   if ((actorsOffset-foundAt) % 4 != 0)
-    actorsOffset += 2;
+    actorsOffset += 2; // padding to find actor address
 
   for (int i = 0; i < numActors; i++) {
     int actorNameOffset;
