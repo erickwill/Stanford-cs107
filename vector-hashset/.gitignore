@@ -3,4 +3,4 @@ thesaurus-lookup
 thesaurus-lookup-linux
 thesaurus-lookup-solaris
 vector-test
-~.o
+*.o
