@@ -1,0 +1,6 @@
+Note!
+In console, type:
+
+export OSTYPE=linux
+
+before running.
