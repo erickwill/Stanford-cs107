@@ -16,6 +16,8 @@ const char *const imdb::kMovieFileName = "moviedata";
 struct Key {
   const char *keyString;
   const void *data;
+  bool isMovie;
+  short year;
 };
 
 imdb::imdb(const string& directory)
@@ -37,8 +39,25 @@ int cmp(const void *a, const void *b)
 {  
   Key *k = (Key*)a;
   int *offset = (int*)b;
-  char *test = (char*)k->data + *offset;  
-  return strcmp(k->keyString, test);
+  char *test = (char*)k->data + *offset;
+  int value =  strcmp(k->keyString, test);
+ 
+  if (!k->isMovie)
+    return value;
+
+  else if (value == 0){
+    char testYearChar;
+    int testLen = strlen(test)+1;
+    memcpy(&testYearChar, (char*)k->data + testLen + *offset, sizeof(char));
+    int testYear = (int)testYearChar + 1900;
+    int diff = k->year - testYear;
+
+    if (diff > 0) return 1;
+    else if (diff < 0) return -1;
+    else return 0;
+
+  } else 
+    return value;
 }
 
 // you should be implementing these two methods right here... 
@@ -46,13 +65,14 @@ bool imdb::getCredits(const string& player, vector<film>& films) const
 {
   int numActors;
   memcpy(&numActors, (int*)actorFile, sizeof(int));
-  int actorStartOffset = 2;
 
   Key k;
   k.keyString = player.c_str();
   k.data = actorFile;
+  k.isMovie = false;
+  int beginActorsOffset = 1;
 
-  int *ptr = (int*)bsearch(&k, (int*)actorFile+actorStartOffset,numActors, sizeof(int*), cmp);
+  int *ptr = (int*)bsearch(&k, (int*)actorFile+beginActorsOffset, numActors, sizeof(int*), cmp);
   if (ptr == NULL) {
     return false;
   }
@@ -60,8 +80,8 @@ bool imdb::getCredits(const string& player, vector<film>& films) const
   int foundAt = *ptr;
   int nameLen = player.length()+1;
   int nameOffset = nameLen + (nameLen % 2);
-  short numMovies;
   int moviesOffset = foundAt + nameOffset;
+  short numMovies;
   memcpy(&numMovies, (char*)actorFile + moviesOffset, sizeof(short));
 
   moviesOffset += sizeof(short);
@@ -79,12 +99,46 @@ bool imdb::getCredits(const string& player, vector<film>& films) const
     movie.year = movieDate;
     films.push_back(movie);
   }
-
   return true;
+  
+ }
+bool imdb::getCast(const film& movie, vector<string>& players) const 
+{
+  Key k;
+  k.keyString = movie.title.c_str();
+  k.data = movieFile;
+  k.isMovie = true;
+  k.year = movie.year;
 
+  int numMovies;
+  memcpy(&numMovies, (int*)movieFile, sizeof(int));
+  int beginMoviesOffset = 1;
 
+  int *ptr = (int*)bsearch(&k, (int*)movieFile + beginMoviesOffset, numMovies, sizeof(int*), cmp);
+  if (ptr == NULL) {
+    return false;
+  }
+
+  int foundAt = *ptr;
+  int nameLen = movie.title.length()+1;
+  int actorsOffset = foundAt + nameLen + sizeof(char);
+  if ((nameLen + sizeof(char)) % 2 != 0)
+    actorsOffset++;
+
+  short numActors;
+  memcpy(&numActors, (char*)movieFile + actorsOffset, sizeof(short));
+  actorsOffset += sizeof(short);
+  if ((actorsOffset-foundAt) % 4 != 0)
+    actorsOffset += 2;
+
+  for (int i = 0; i < numActors; i++) {
+    int actorNameOffset;
+    memcpy(&actorNameOffset, (char*)movieFile + actorsOffset + (i * sizeof(int)), sizeof(int));
+    char *actorName = (char*)actorFile + actorNameOffset;
+    players.push_back(actorName);
+  }
+  return true;
 }
-bool imdb::getCast(const film& movie, vector<string>& players) const { return false; }
 
 imdb::~imdb()
 {

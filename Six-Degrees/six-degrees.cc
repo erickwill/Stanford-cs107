@@ -37,6 +37,45 @@ static string promptForActor(const string& prompt, const imdb& db)
   }
 }
 
+bool generateShortestPath(string &source, string &target, imdb &db)
+{
+  list<path> partialPaths;
+  set<string> previouslySeenActors;
+  set<film> previouslySeenFilms;
+
+  path startPath(source);
+  partialPaths.push_front(startPath);
+
+  while (!partialPaths.empty() && partialPaths.front().getLength() <= 5) {
+    path frontPath = partialPaths.front();
+    partialPaths.pop_front();
+    vector<film> movies;
+    db.getCredits(frontPath.getLastPlayer(), movies);
+
+    for (unsigned int i = 0; i < movies.size(); i++) {
+      if (previouslySeenFilms.find(movies[i]) == previouslySeenFilms.end()) {
+	previouslySeenFilms.insert(movies[i]);
+	vector<string> cast;
+	db.getCast(movies[i],cast);
+	
+	for (unsigned int j = 0; j < cast.size(); j++) {
+	  if (previouslySeenActors.find(cast[j]) == previouslySeenActors.end()) {
+	    previouslySeenActors.insert(cast[j]);
+	    path newPath = frontPath;
+	    newPath.addConnection(movies[i], cast[j]);
+	    if (cast[j] == target) {
+	      cout << newPath << endl;
+	      return true;
+	    } else
+	      partialPaths.push_back(newPath);
+	  }
+	}
+      }
+    }
+  }
+  return false;
+}
+
 /**
  * Serves as the main entry point for the six-degrees executable.
  * There are no parameters to speak of.
@@ -60,7 +99,7 @@ int main(int argc, const char *argv[])
     cout << "Please check to make sure the source files exist and that you have permission to read them." << endl;
     exit(1);
   }
-  
+
   while (true) {
     string source = promptForActor("Actor or actress", db);
     if (source == "") break;
@@ -69,8 +108,8 @@ int main(int argc, const char *argv[])
     if (source == target) {
       cout << "Good one.  This is only interesting if you specify two different people." << endl;
     } else {
-      // replace the following line by a call to your generateShortestPath routine... 
-      cout << endl << "No path between those two people could be found." << endl << endl;
+      if (!generateShortestPath(source,target,db))
+	cout << endl << "No path between those two people could be found." << endl << endl;
     }
   }
   
