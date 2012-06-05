@@ -17,7 +17,7 @@ struct Key {
   const char *keyString;
   const void *data;
   bool isMovie;
-  short year;
+  int year;
 };
 
 imdb::imdb(const string& directory)
