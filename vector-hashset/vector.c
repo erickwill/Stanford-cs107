@@ -26,6 +26,13 @@ void VectorDispose(vector *v)
   free(v->elems);
 }
 
+static void DoubleCapacity(vector *v)
+{
+  v->allocLength *= 2;
+  v->elems = realloc(v->elems, v->allocLength * v->elemSize);
+  assert(v->elems != NULL);
+}
+
 int VectorLength(const vector *v)
 { 
   return v->logLength; 
@@ -33,30 +40,50 @@ int VectorLength(const vector *v)
 
 void *VectorNth(const vector *v, int position)
 { 
-  if (position >= v->logLength) return NULL;
+  assert(position < v->logLength);
   
   void *destAddr;
-  memcpy(destAddr, (char*)v->elems + (position * v->elemSize), v->elemSize);
+  void *srcAddr = (char*)v->elems + position * v->elemSize;
+  memcpy(&destAddr, &srcAddr, v->elemSize);
   return destAddr; 
 }
 
 void VectorReplace(vector *v, const void *elemAddr, int position)
-{}
+{
+  if (position >= v->logLength) return;
+  else {
+    void *destAddr = (char*)v->elems + (position * v->elemSize);
+    memcpy(destAddr,elemAddr,v->elemSize);
+  }
+}
 
 void VectorInsert(vector *v, const void *elemAddr, int position)
-{}
+{
+  if (position > v->logLength) {
+    return;
+  } else if (position == v->logLength) {
+    VectorAppend(v, elemAddr);
+    return;
+  }
+
+  if (v->logLength == v->allocLength) DoubleCapacity(v);
+
+  void *startShiftAddr = (char*)v->elems + (position * v->elemSize);
+  void *endShiftAddr = (char*)v->elems + ((position+1) * v->elemSize);
+  int blockSize = v->logLength - position;
+  memmove(endShiftAddr,startShiftAddr,blockSize);
+
+  VectorReplace(v,elemAddr,position);
+}
 
 void VectorAppend(vector *v, const void *elemAddr)
 {
-  void * destAddr;
   if (v->logLength == v->allocLength) {
-    v->allocLength *= 2;
-    v->elems = realloc(v->elems, v->allocLength * v->elemSize);
-    assert(v->elems != NULL);
+    DoubleCapacity(v);
   }
   
-  destAddr = (char *)v->elems + (v->logLength * v->elemSize);
-  memcpy(destAddr, v->elems, v->elemSize);
+  void *destAddr = (char*)v->elems + v->logLength * v->elemSize;
+  memcpy(destAddr, elemAddr, v->elemSize);
   v->logLength++;
 }
 
