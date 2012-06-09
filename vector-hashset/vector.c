@@ -40,7 +40,7 @@ int VectorLength(const vector *v)
 
 void *VectorNth(const vector *v, int position)
 { 
-  assert(position < v->logLength);
+  if (position >= v->logLength) return NULL;
   
   void *destAddr;
   void *srcAddr = (char*)v->elems + position * v->elemSize;
@@ -70,10 +70,10 @@ void VectorInsert(vector *v, const void *elemAddr, int position)
 
   void *startShiftAddr = (char*)v->elems + (position * v->elemSize);
   void *endShiftAddr = (char*)v->elems + ((position+1) * v->elemSize);
-  int blockSize = v->logLength - position;
+  int blockSize = (v->logLength - position) * v->elemSize;
   memmove(endShiftAddr,startShiftAddr,blockSize);
-
   VectorReplace(v,elemAddr,position);
+  v->logLength++;
 }
 
 void VectorAppend(vector *v, const void *elemAddr)
