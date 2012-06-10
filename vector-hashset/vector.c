@@ -88,14 +88,51 @@ void VectorAppend(vector *v, const void *elemAddr)
 }
 
 void VectorDelete(vector *v, int position)
-{}
+{
+  if (position >= v->logLength) return;
+  if (position == v->logLength) v->logLength--;
+
+  void *startShiftAddr = (char*)v->elems + ((position+1) * v->elemSize);
+  void *endShiftAddr = (char*)v->elems + (position * v->elemSize);
+  int blockSize = (v->logLength - position - 1) * v->elemSize;
+  memmove(endShiftAddr,startShiftAddr,blockSize);
+  v->logLength--;  
+}
 
 void VectorSort(vector *v, VectorCompareFunction compare)
-{}
+{
+  qsort(v,v->logLength * v->elemSize,v->elemSize,compare);
+}
 
 void VectorMap(vector *v, VectorMapFunction mapFn, void *auxData)
-{}
+{
+  for (int i = 0; i < v->logLength; i++) {
+    void *element;
+    void *currAddr = (char*)v->elems + (i * v->elemSize);
+    memcpy(&element,currAddr,v->elemSize);
+    mapFn(&element,auxData);
+  }
+}
+
 
 static const int kNotFound = -1;
 int VectorSearch(const vector *v, const void *key, VectorCompareFunction searchFn, int startIndex, bool isSorted)
-{ return -1; } 
+{ 
+  if (isSorted) {
+    void *found = bsearch(key,(char*)v->elems + (startIndex * v->elemSize),
+			  (v->logLength-startIndex) * v->elemSize,v->elemSize,searchFn);
+    if (found == NULL) return -1;
+    else {
+      for (int i = 0; i < v->logLength; i++) {
+	if (memcmp(found,(char*)v->elems + (i * v->elemSize),v->elemSize) == 0)
+	  return i;
+      }
+    }
+  } else {
+    for (int i = 0; i < v->logLength; i++) {
+	if (memcmp(key,(char*)v->elems + (i * v->elemSize),v->elemSize) == 0)
+	  return i;
+    }
+  }
+  return -1; 
+} 
