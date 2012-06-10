@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <search.h>
 #include <assert.h>
 
 void VectorNew(vector *v, int elemSize, VectorFreeFunction freeFn, int initialAllocation)
@@ -40,11 +41,10 @@ int VectorLength(const vector *v)
 
 void *VectorNth(const vector *v, int position)
 { 
-  if (position >= v->logLength) return NULL;
+  assert(position < v->logLength);
+  if (position > v->logLength) return NULL;
   
-  void *destAddr;
-  void *srcAddr = (char*)v->elems + position * v->elemSize;
-  memcpy(&destAddr, &srcAddr, v->elemSize);
+  void *destAddr = (char*)v->elems + (position * v->elemSize);
   return destAddr; 
 }
 
@@ -101,7 +101,7 @@ void VectorDelete(vector *v, int position)
 
 void VectorSort(vector *v, VectorCompareFunction compare)
 {
-  qsort(v,v->logLength * v->elemSize,v->elemSize,compare);
+  qsort(v->elems,v->logLength,v->elemSize,compare);
 }
 
 void VectorMap(vector *v, VectorMapFunction mapFn, void *auxData)
@@ -114,25 +114,33 @@ void VectorMap(vector *v, VectorMapFunction mapFn, void *auxData)
   }
 }
 
+static int getIndex(const vector *v, void *found)
+{
+  for (int i = 0; i < v->logLength; i++) {
+    if (memcmp(found,(char*)v->elems + (i * v->elemSize),v->elemSize) == 0)
+      return i;
+  }
+  return -1;
+}
 
 static const int kNotFound = -1;
 int VectorSearch(const vector *v, const void *key, VectorCompareFunction searchFn, int startIndex, bool isSorted)
-{ 
+{
+  void *found;
   if (isSorted) {
-    void *found = bsearch(key,(char*)v->elems + (startIndex * v->elemSize),
-			  (v->logLength-startIndex) * v->elemSize,v->elemSize,searchFn);
-    if (found == NULL) return -1;
+    found = bsearch(key,(char*)v->elems + (startIndex * v->elemSize),
+		    (v->logLength-startIndex) * v->elemSize,v->elemSize,searchFn);
+    
+    if (found == NULL) return kNotFound;
     else {
-      for (int i = 0; i < v->logLength; i++) {
-	if (memcmp(found,(char*)v->elems + (i * v->elemSize),v->elemSize) == 0)
-	  return i;
-      }
+      return getIndex(v, found);
     }
+  
   } else {
-    for (int i = 0; i < v->logLength; i++) {
-	if (memcmp(key,(char*)v->elems + (i * v->elemSize),v->elemSize) == 0)
-	  return i;
-    }
-  }
-  return -1; 
+    size_t size = v->logLength - startIndex;
+    found = lfind(key,(char*)v->elems + (startIndex * v->elemSize),
+		  &size,v->elemSize,searchFn);
+    if (found == NULL) return kNotFound;
+    return getIndex(v,found);
+ }
 } 
