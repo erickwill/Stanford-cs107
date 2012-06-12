@@ -7,20 +7,23 @@
 
 void VectorNew(vector *v, int elemSize, VectorFreeFunction freeFn, int initialAllocation)
 {
+  if (initialAllocation == 0)
+    initialAllocation = 4;
   assert(elemSize > 0);
+  assert(initialAllocation > 0);
   v->elemSize = elemSize;
   v->allocLength = initialAllocation;
   v->logLength = 0;
   v->elems = malloc(initialAllocation * elemSize);
   assert(v->elems != NULL);
-  v->VectorFreeFunction = freeFn;
+  v->freefn = freeFn;
 }
 
 void VectorDispose(vector *v)
 {
-  if (v->VectorFreeFunction != NULL) {
+  if (v->freefn != NULL) {
     for (int i = 0; i < v->logLength; i++) {
-      v->VectorFreeFunction(VectorNth(v,i));
+      v->freefn(VectorNth(v,i));
     }
   }
 
@@ -107,10 +110,8 @@ void VectorSort(vector *v, VectorCompareFunction compare)
 void VectorMap(vector *v, VectorMapFunction mapFn, void *auxData)
 {
   for (int i = 0; i < v->logLength; i++) {
-    void *element;
     void *currAddr = (char*)v->elems + (i * v->elemSize);
-    memcpy(&element,currAddr,v->elemSize);
-    mapFn(&element,auxData);
+    mapFn(currAddr,auxData);
   }
 }
 

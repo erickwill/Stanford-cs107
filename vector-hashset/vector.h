@@ -72,7 +72,7 @@ typedef struct {
   int elemSize;
   int logLength;
   int allocLength;
-  void (*VectorFreeFunction)(void *elemAddr);
+  VectorFreeFunction freefn;
 } vector;
 
 /** 
