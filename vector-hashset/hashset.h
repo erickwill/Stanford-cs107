@@ -75,6 +75,7 @@ typedef void (*HashSetFreeFunction)(void *elemAddr);
 typedef struct {
   int numBuckets;
   int elemSize;
+  int count;
   HashSetHashFunction hashfn;
   HashSetCompareFunction compfn;
   HashSetFreeFunction freefn;
