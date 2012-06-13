@@ -70,9 +70,9 @@ void HashSetEnter(hashset *h, const void *elemAddr)
   if (index == kNotFound) {
     VectorAppend(&h->buckets[hashNum],elemAddr);
     h->count++;
-  }
-  else
+  } else {    
     VectorReplace(&h->buckets[hashNum], elemAddr, index); // clobber existing element
+  }
 }
 
 void *HashSetLookup(const hashset *h, const void *elemAddr)
