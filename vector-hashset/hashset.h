@@ -73,13 +73,13 @@ typedef void (*HashSetFreeFunction)(void *elemAddr);
  */
 
 typedef struct {
-  int numBuckets;
+  int numBuckets; // hash range
   int elemSize;
-  int count;
+  int elemCount; // number of elements stored
   HashSetHashFunction hashfn;
   HashSetCompareFunction compfn;
   HashSetFreeFunction freefn;
-  vector *buckets;
+  vector *buckets; // dynamic array of elements
 } hashset;
 
 /**
@@ -157,7 +157,7 @@ int HashSetCount(const hashset *h);
  * Inserts the specified element into the specified
  * hashset.  If the specified element matches an
  * element previously inserted (as far as the hash
- * and compare functions are concerned), the the
+ * and compare functions are concerned), then the
  * old element is replaced by this new element.
  *
  * An assert is raised if the specified address is NULL, or
