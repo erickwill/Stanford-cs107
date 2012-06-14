@@ -5,12 +5,14 @@
 #include <search.h>
 #include <assert.h>
 
-static const int defaultVectorAlloc = 4;
+static const int defaultVectorAlloc = 4; // default allocation value
+static const int kNotFound = -1; // not found sentinel
 
 void VectorNew(vector *v, int elemSize, VectorFreeFunction freeFn, int initialAllocation)
 {
-  if (initialAllocation == 0)
+  if (initialAllocation == 0) {
     initialAllocation = defaultVectorAlloc;
+  }
 
   assert(elemSize > 0);
   assert(initialAllocation > 0);
@@ -60,7 +62,12 @@ void VectorReplace(vector *v, const void *elemAddr, int position)
 {
   assert(position >= 0 && position < v->logLength);
 
-  void *destAddr = (char*)v->elems + (position * v->elemSize);
+  void *destAddr = (char*)v->elems + (position * v->elemSize); 
+
+  if (v->freefn != NULL) {
+    v->freefn(destAddr); // free old elem
+  }
+
   memcpy(destAddr,elemAddr,v->elemSize);
 }
 
@@ -73,15 +80,18 @@ void VectorInsert(vector *v, const void *elemAddr, int position)
     return;
   }
 
-  if (v->logLength == v->allocLength) DoubleCapacity(v);
+  if (v->logLength == v->allocLength) {
+    DoubleCapacity(v);
+  }
 
   void *startShiftAddr = (char*)v->elems + (position * v->elemSize);
+  // shift one elem over to insert
   void *endShiftAddr = (char*)v->elems + ((position+1) * v->elemSize);
   int blockSize = (v->logLength - position) * v->elemSize;
 
-  memmove(endShiftAddr,startShiftAddr,blockSize);
+  memmove(endShiftAddr,startShiftAddr,blockSize); // shift memory over
+  memcpy(startShiftAddr,elemAddr,v->elemSize); // insert elem
 
-  VectorReplace(v,elemAddr,position);
   v->logLength++;
 }
 
@@ -92,7 +102,7 @@ void VectorAppend(vector *v, const void *elemAddr)
   }
   
   void *destAddr = (char*)v->elems + v->logLength * v->elemSize;
-  memcpy(destAddr, elemAddr, v->elemSize);
+  memcpy(destAddr, elemAddr, v->elemSize); // add to end of vector
   v->logLength++;
 }
 
@@ -105,10 +115,17 @@ void VectorDelete(vector *v, int position)
     return;
   }
 
+  // one elem to the right
   void *startShiftAddr = (char*)v->elems + ((position+1) * v->elemSize);
+  // elem address to delete
   void *endShiftAddr = (char*)v->elems + (position * v->elemSize);
+  // size of memory block to move
   int blockSize = (v->logLength - position - 1) * v->elemSize;
-  
+
+  if (v->freefn != NULL) {
+    v->freefn(endShiftAddr); // free deleted elem
+  }
+
   memmove(endShiftAddr,startShiftAddr,blockSize);
   
   v->logLength--;  
@@ -132,7 +149,7 @@ void VectorMap(vector *v, VectorMapFunction mapFn, void *auxData)
 /**
 * Calculates index from the difference between found address and start address.
 **/
-static int getIndex(const vector *v, void *found, int startIndex)
+static int GetIndex(const vector *v, void *found, int startIndex)
 {
   void *startAddr = (char*)v->elems + (startIndex * v->elemSize);
 
@@ -142,7 +159,22 @@ static int getIndex(const vector *v, void *found, int startIndex)
   return diff;
 }
 
-static const int kNotFound = -1;
+static void *BinarySearchVector(const vector *v, const void *key,
+                                VectorCompareFunction searchFn, int startIndex,
+                                bool isSorted, size_t size)
+{
+  return bsearch(key,(char*)v->elems + (startIndex * v->elemSize),
+                 size,v->elemSize,searchFn);
+}
+
+static void *LinearSearchVector(const vector *v, const void *key,
+                                VectorCompareFunction searchFn, int startIndex,
+                                bool isSorted, size_t size)
+{
+  return lfind(key,(char*)v->elems + (startIndex * v->elemSize),
+               &size,v->elemSize,searchFn);
+}
+
 int VectorSearch(const vector *v, const void *key, VectorCompareFunction searchFn, 
                  int startIndex, bool isSorted)
 {
@@ -152,25 +184,15 @@ int VectorSearch(const vector *v, const void *key, VectorCompareFunction searchF
   size_t size = v->logLength - startIndex; // size of block to test
 
   if (isSorted) {
-    // binary search
-    found = bsearch(key,(char*)v->elems + (startIndex * v->elemSize),
-                    size,v->elemSize,searchFn);
-    
-    if (found == NULL) 
-      return kNotFound;
-    else {
-      return getIndex(v, found, startIndex);
-    }
-
+    found = BinarySearchVector(v,key,searchFn,startIndex,isSorted,size);
   } else {
-    // linear search
-    found = lfind(key,(char*)v->elems + (startIndex * v->elemSize),
-		  &size,v->elemSize,searchFn);
+    found = LinearSearchVector(v,key,searchFn,startIndex,isSorted,size);
+  }
 
-    if (found == NULL) 
-      return kNotFound;
-
-    return getIndex(v, found, startIndex);
+  if (found == NULL) {
+    return kNotFound;
+  } else {
+    return GetIndex(v, found, startIndex);
   }
 } 
 

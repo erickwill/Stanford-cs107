@@ -4,8 +4,8 @@
 #include <string.h>
 #include <stdio.h>
 
-static const int defaultVectorAlloc = 4;
-static const int kNotFound = -1;
+static const int defaultVectorAlloc = 4; // vector allocation size
+static const int kNotFound = -1; // elem not found sentinel
 
 void HashSetNew(hashset *h, int elemSize, int numBuckets,
 		HashSetHashFunction hashfn, HashSetCompareFunction comparefn,
@@ -16,7 +16,7 @@ void HashSetNew(hashset *h, int elemSize, int numBuckets,
 
   h->elemSize = elemSize;
   h->numBuckets = numBuckets;
-  h->count = 0;
+  h->elemCount = 0;
   h->hashfn = hashfn;
   h->compfn = comparefn;
   h->freefn = freefn;
@@ -40,7 +40,7 @@ void HashSetDispose(hashset *h)
 
 int HashSetCount(const hashset *h)
 {
-  return h->count;
+  return h->elemCount;
 }
 
 void HashSetMap(hashset *h, HashSetMapFunction mapfn, void *auxData)
@@ -52,43 +52,44 @@ void HashSetMap(hashset *h, HashSetMapFunction mapfn, void *auxData)
   }
 }
 
-static int vectorLookup(vector *v,const void *elemAddr,
-                        HashSetCompareFunction compfn)
-{
-  return  VectorSearch(v,elemAddr,compfn,0,true);
-}
-
-void HashSetEnter(hashset *h, const void *elemAddr)
+/**
+* Returns an integer computed by the hash function.
+**/
+static int GetHashNum(const hashset *h, const void *elemAddr)
 {
   assert(elemAddr != NULL);
 
   int hashNum = h->hashfn(elemAddr,h->numBuckets);
   assert(hashNum >= 0 && hashNum < h->numBuckets);
+  return hashNum;
+}
 
-  int index = vectorLookup(&h->buckets[hashNum],elemAddr,h->compfn);
+void HashSetEnter(hashset *h, const void *elemAddr)
+{
+  int hashNum = GetHashNum(h,elemAddr);
+
+  int index = VectorSearch(&h->buckets[hashNum],elemAddr,h->compfn,0,false);
 
   if (index == kNotFound) {
-    VectorAppend(&h->buckets[hashNum],elemAddr);
-    h->count++;
-  } else {    
-    VectorReplace(&h->buckets[hashNum], elemAddr, index); // clobber existing element
+    VectorAppend(&h->buckets[hashNum],elemAddr); // add elem
+    h->elemCount++;
+  } else {
+    // overwrite existing element
+    VectorReplace(&h->buckets[hashNum], elemAddr, index);
   }
 }
 
 void *HashSetLookup(const hashset *h, const void *elemAddr)
 {
-  assert(elemAddr != NULL);
+  int hashNum = GetHashNum(h,elemAddr);
 
-  int hashNum = h->hashfn(elemAddr,h->numBuckets);
-  assert(hashNum >= 0 && hashNum < h->numBuckets);
+  VectorSort(&h->buckets[hashNum], h->compfn);
+  int index = VectorSearch(&h->buckets[hashNum],elemAddr,h->compfn,0,true);
 
-  VectorSort(&h->buckets[hashNum],h->compfn);
-
-  int index =  vectorLookup(&h->buckets[hashNum],elemAddr,h->compfn);
-
-  if (index == kNotFound) 
+  if (index == kNotFound) {
     return NULL;
-  else 
-    return VectorNth(&h->buckets[hashNum],index);
+  } else {
+    return VectorNth(&h->buckets[hashNum],index); // elem address
+  }
 }
 
