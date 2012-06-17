@@ -69,6 +69,8 @@ static void QueryIndices(hashset * stopWords, hashset *wordHash,
 			 hashset *articlesSeen);
 static void ProcessResponse(const char *word, hashset * stopWords,
 			    hashset *wordHash, hashset *articlesSeen);
+static void ProcessValidResponse(const char *word, hashset *stopWords,
+				 hashset *wordHash, hashset *articlesSeen);
 static bool WordIsWellFormed(const char *word);
 
 
@@ -77,6 +79,7 @@ static int StringHash(const void *elem, int numBuckets);
 static int StringCompare(const void *elem1, const void *elem2);
 static void StringFree(void *elem);
 
+static void MapFoundArticles(vector *articles, int numArts);
 static int ArticleHashFn(const void *elem, int numBuckets);
 static int WordHashFn(const void *elem, int numBuckets);
 static int WordCompare(const void *elem1, const void *elem2);
@@ -564,46 +567,62 @@ static void QueryIndices(hashset * stopWords, hashset* wordHash,
  * for a list of web documents containing the specified word.
  */
 
-static void ProcessResponse(const char *word, hashset * stopWords,
+static void ProcessResponse(const char *word, hashset *stopWords,
 			    hashset *wordHash, hashset *articlesSeen)
 {
   if (WordIsWellFormed(word)) {
-    if (HashSetLookup(stopWords, &word) != NULL)
-     printf("This is too common a word. Please be more specific.\n");
-    else {
-      currWord curr;
-      char* test = strdup(word);
-      curr.thisWord = test;
-      currWord* elemAddr = (currWord*)HashSetLookup(wordHash,&curr);
-      if(elemAddr != NULL){
-	int numArts = VectorLength(&elemAddr->articles);
-	if(numArts > 10){
-	    printf("\nNice! We found %i articles that include the word\"%s\". [We'll just list 10 of them,though.]\n\n",numArts, curr.thisWord);
-	    numArts = 10;
-	}
-	else
-	  printf("\nNice! We found %i articles that include the word \"%s\".\n\n",numArts, curr.thisWord);
-
-	VectorSort(&elemAddr->articles, OccurrenceCompare);
-	for(int i=0; i<numArts; i++) {
-	  article* currElem = (article*)VectorNth(&elemAddr->articles,i);
-	  bool plural = (currElem->numOccurrences > 1);
-
-	  if(plural)
-	    printf("%i) \"%s\"\n[search term occurs %i times]\n%s\n\n", i+1,
-		   currElem->title,currElem->numOccurrences,currElem->url);
-	  else
-	    printf("%i) \"%s\"\n[search term occurs %i time]\n%s\n\n", i+1,
-		   currElem->title,currElem->numOccurrences,currElem->url);
-	}
-
-	free(test);
-
-      } else
-	  printf("None of today's news articles contain the word \"%s\".\n",word);
+    if (HashSetLookup(stopWords, &word) != NULL) {
+      printf("This is too common a word. Please be more specific.\n");
+    } else {
+      ProcessValidResponse(word,stopWords,wordHash,articlesSeen);
     }
   } else {
       printf("We won't be allowing words like \"%s\" into our set of indices.\n", word);
+  }
+}
+
+static void ProcessValidResponse(const char *word, hashset *stopWords,
+				 hashset *wordHash, hashset *articlesSeen)
+{
+  currWord curr;    
+  char* test = strdup(word);      
+  curr.thisWord = test;
+  currWord* elemAddr = (currWord*)HashSetLookup(wordHash,&curr);
+
+  if(elemAddr != NULL){
+    int numArts = VectorLength(&elemAddr->articles);
+
+    if(numArts > 10){
+      printf("\nNice! We found %i articles that include the word\"%s\". [We'll just list 10 of them,though.]\n\n",numArts, curr.thisWord);
+      numArts = 10;
+    } else {
+      printf("\nNice! We found %i articles that include the word \"%s\".\n\n",numArts, curr.thisWord);
+    }
+
+    VectorSort(&elemAddr->articles, OccurrenceCompare);
+    MapFoundArticles(&elemAddr->articles, numArts);
+
+  } else {
+    printf("None of today's news articles contain the word \"%s\".\n",word);
+  }
+
+  free(test);
+}
+
+static void MapFoundArticles(vector *articles, int numArts)
+{
+  for(int i=0; i< numArts; i++) {
+    article *currElem = VectorNth(articles,i);
+    bool plural = (currElem->numOccurrences > 1);
+
+    if(plural) {
+      printf("%i) \"%s\"\n[search term occurs %i times]\n%s\n\n", i+1,
+	     currElem->title,currElem->numOccurrences,currElem->url);
+    } else {
+      printf("%i) \"%s\"\n[search term occurs %i time]\n%s\n\n", i+1,
+	     currElem->title,currElem->numOccurrences,currElem->url);
+    }
+
   }
 }
 
