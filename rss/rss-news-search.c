@@ -62,6 +62,9 @@ static void ParseArticle(const char *articleTitle,
 static void ScanArticle(streamtokenizer *st, article* a,
 			hashset* stopWords, hashset* wordHash,
 			hashset *articlesSeen);
+static void ProcessWellFormedWord(char *word, article *a, hashset *stopWords,
+				  hashset *wordHash, hashset *articlesSeen);
+static void UpdateOccurences(vector *articles, article *a);
 static void QueryIndices(hashset * stopWords, hashset *wordHash,
 			 hashset *articlesSeen);
 static void ProcessResponse(const char *word, hashset * stopWords,
@@ -102,7 +105,7 @@ static int OccurrenceCompare(const void *elem1, const void *elem2);
 static const char *const kWelcomeTextFile = 
   "/usr/class/cs107/assignments/assn-4-rss-news-search-data/welcome.txt";
 static const char *const kDefaultFeedsFile =
-  "/usr/class/cs107/assignments/assn-4-rss-news-search-data/rss-feeds-tiny.txt";
+  "/usr/class/cs107/assignments/assn-4-rss-news-search-data/rss-feeds-tiny-dup.txt";
 static const char *const kDefaultStopWordsFile =
   "/usr/class/cs107/assignments/assn-4-rss-news-search-data/stop-words.txt";
 
@@ -429,12 +432,12 @@ static void ParseArticle(const char *articleTitle,const char *articleDescription
   currArt.numOccurrences = 0;
 
   switch (urlconn.responseCode) {
-      case 0: printf("Unable to connect to \"%s\".  Domain name or IP address is nonexistent.\n", articleURL);
-	      ArticleFree(&currArt);
-	      break;
+      case 0:   printf("Unable to connect to \"%s\".  Domain name or IP address is nonexistent.\n", articleURL);
+	        ArticleFree(&currArt);
+	        break;
       case 200:
 	        if(HashSetLookup(articlesSeen,&currArt)== NULL){ //if we haven't seen this article before
-		  printf("[%s] Indexing \"%s\" \n ", u.serverName,articleTitle);
+		  printf("[%s] Indexing \"%s\"\n", u.serverName,articleTitle);
 		  HashSetEnter(articlesSeen, &currArt);
 		  STNew(&st, urlconn.dataStream, kTextDelimiters, false);
 		  ScanArticle(&st, &currArt, stopWords, wordHash, articlesSeen);
@@ -480,42 +483,56 @@ static void ScanArticle(streamtokenizer *st, article* a,
 			hashset *articlesSeen)
 {
   char word[1024];
-  currWord w;
- 
+
   while (STNextToken(st, word, sizeof(word))) {
     if (strcasecmp(word, "<") == 0) {
       SkipIrrelevantContent(st); // in html-utls.h
     } else {
       RemoveEscapeCharacters(word);
       if (WordIsWellFormed(word)) {
-	char* word2 = strdup(word);
-	if(HashSetLookup(stopWords, &word2) == NULL)  { //not a stopword
-	  w.thisWord = word2;
-	  VectorNew(&w.articles, sizeof(article),NULL, 100);
-	  currWord* elemAddr = (currWord*)HashSetLookup(wordHash,&w);
-	  if(elemAddr == NULL){ //Hasn't been seen
-	    a->numOccurrences = 1;
-	    VectorAppend(&w.articles, a);
-	    HashSetEnter(wordHash, &w);
-	  } else {
-	      int index = VectorSearch(&elemAddr->articles, a, ArticleCompare, 0, false);
-
-	    if(index==-1) {
-	      a->numOccurrences = 1;
-	      VectorAppend(&elemAddr->articles, a);
-	    } else {
-	        article* currArt = (article*)VectorNth(&elemAddr->articles, index);
-	        currArt->numOccurrences++;
-	    }
-
-	    free(word2);
-            VectorDispose(&w.articles);
-	  }
-	} else {
-	    free(word2); 
-	}
+	ProcessWellFormedWord(word,a,stopWords,wordHash,articlesSeen);
       }
     }
+  }
+}
+
+static void ProcessWellFormedWord(char *word, article *a, hashset *stopWords,
+				  hashset *wordHash, hashset *articlesSeen)
+{   
+  currWord w; 
+  char* word2 = strdup(word);
+
+  if(HashSetLookup(stopWords, &word2) == NULL)  { //not a stopword
+    w.thisWord = word2;	  
+    VectorNew(&w.articles, sizeof(article),NULL, 100);
+    currWord* elemAddr = (currWord*)HashSetLookup(wordHash,&w);
+
+    if(elemAddr == NULL){ // Hasn't been seen
+      a->numOccurrences = 1;
+      VectorAppend(&w.articles, a);
+      HashSetEnter(wordHash, &w);
+    } else {
+      UpdateOccurences(&elemAddr->articles,a); // we just need to update, not add
+      // clean up
+      free(word2);
+      VectorDispose(&w.articles); 
+    }
+
+  } else {
+    free(word2); // free stop word
+  }
+}
+
+static void UpdateOccurences(vector *articles, article *a)
+{
+  int index = VectorSearch(articles, a, ArticleCompare, 0, false);
+      
+  if(index==-1) {
+    a->numOccurrences = 1;
+    VectorAppend(articles, a);
+  } else {
+    article* currArt = (article*)VectorNth(articles, index);
+    currArt->numOccurrences++;
   }
 }
 
@@ -526,13 +543,12 @@ static void ScanArticle(streamtokenizer *st, article* a,
  * then proceeds (via ProcessResponse) to list up to 10 articles (sorted by relevance)
  * that contain that word.
  */
-
 static void QueryIndices(hashset * stopWords, hashset* wordHash, 
 			 hashset* articlesSeen)
 {
   char response[1024];
   while (true) {
-    printf("Please enter a single query term that might be in our set of indices [enter to quit]: \n");
+    printf("Please enter a single query term [enter to quit]: ");
     fgets(response, sizeof(response), stdin);
     response[strlen(response) - 1] = '\0';
     if (strcasecmp(response, "") == 0) break;
@@ -553,7 +569,7 @@ static void ProcessResponse(const char *word, hashset * stopWords,
 {
   if (WordIsWellFormed(word)) {
     if (HashSetLookup(stopWords, &word) != NULL)
-     printf( "this is too common a word to be taken seriously.  Please be more specific.\n");
+     printf("This is too common a word. Please be more specific.\n");
     else {
       currWord curr;
       char* test = strdup(word);
@@ -562,11 +578,11 @@ static void ProcessResponse(const char *word, hashset * stopWords,
       if(elemAddr != NULL){
 	int numArts = VectorLength(&elemAddr->articles);
 	if(numArts > 10){
-	    printf("Nice! We found %i articles that include the word\"%s\". [We'll just list 10 of them,though.]\n\n",numArts, curr.thisWord);
+	    printf("\nNice! We found %i articles that include the word\"%s\". [We'll just list 10 of them,though.]\n\n",numArts, curr.thisWord);
 	    numArts = 10;
 	}
 	else
-	  printf("Nice! We found %i articles that include the word\"%s\".\n\n",numArts, curr.thisWord);
+	  printf("\nNice! We found %i articles that include the word \"%s\".\n\n",numArts, curr.thisWord);
 
 	VectorSort(&elemAddr->articles, OccurrenceCompare);
 	for(int i=0; i<numArts; i++) {
@@ -574,10 +590,10 @@ static void ProcessResponse(const char *word, hashset * stopWords,
 	  bool plural = (currElem->numOccurrences > 1);
 
 	  if(plural)
-	    printf(" %i ) \"%s\" [search term occurs %i times] \n\n \"%s\"\n ", i+1,
+	    printf("%i) \"%s\"\n[search term occurs %i times]\n%s\n\n", i+1,
 		   currElem->title,currElem->numOccurrences,currElem->url);
 	  else
-	    printf(" %i ) \"%s\" [search term occurs %i time] \n\n \"%s\"\n ", i+1,
+	    printf("%i) \"%s\"\n[search term occurs %i time]\n%s\n\n", i+1,
 		   currElem->title,currElem->numOccurrences,currElem->url);
 	}
 
@@ -587,7 +603,7 @@ static void ProcessResponse(const char *word, hashset * stopWords,
 	  printf("None of today's news articles contain the word \"%s\".\n",word);
     }
   } else {
-      printf("\tWe won't be allowing words like \"%s\" into our set of indices.\n", word);
+      printf("We won't be allowing words like \"%s\" into our set of indices.\n", word);
   }
 }
 
@@ -694,12 +710,12 @@ static int ArticleCompare(const void *elem1, const void *elem2)
     return strcasecmp(title1,title2);
 }
 
- static int OccurrenceCompare(const void *elem1, const void *elem2)
- {
-    int num1 = ((article*)elem1)->numOccurrences;
-    int num2 = ((article*)elem2)->numOccurrences;
-    return (num2-num1);
- }
+static int OccurrenceCompare(const void *elem1, const void *elem2)
+{
+  int num1 = ((article*)elem1)->numOccurrences;
+  int num2 = ((article*)elem2)->numOccurrences;
+  return (num2-num1); 
+}
 
 static int ArticleHashFn(const void *elem, int numBuckets)
 {
