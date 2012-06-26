@@ -1,0 +1,3 @@
+NOTES:
+
+Since I did not have access to the courses thread library (thread_107.c & thread_107.h) I used the pthread library directly. Also, since the websites for the welcome message and rss feeds are no longer valid, I simply used my previous rss project as the base for this program. You can find the precompiled library, rss feed files, and welcome text file in the /rss project directory or from the SEE CS107 course website. 
