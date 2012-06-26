@@ -49,11 +49,11 @@ typedef struct {
   char* url;
 }article;
 
+static void DestroySemaphores(rssDatabase *db);
 static void SetupSemaphores(rssDatabase *db);
 static void Welcome(const char *welcomeTextFileName);
 static void BuildIndices(const char *feedsFileName, rssDatabase *db);
 static void *ProcessFeed(void *feedPack);
-//static void ProcessFeed(const char *remoteDocumentName, rssDatabase *db);
 static void PullAllNewsItems(urlconnection *urlconn, rssDatabase *db);
 static bool GetNextItemTag(streamtokenizer *st);
 static void ProcessSingleNewsItem(streamtokenizer *st, rssDatabase *db);
@@ -134,6 +134,7 @@ int main(int argc, char **argv)
   HashSetDispose(&db.stopWords);
   HashSetDispose(&db.wordHash);
   HashSetDispose(&db.articlesSeen);
+  DestroySemaphores(&db);
   return 0;
 }
 
@@ -144,6 +145,15 @@ static void SetupSemaphores(rssDatabase *db)
   sem_init(&db->wordHashLock,0,1);
   sem_init(&db->articlesSeenLock,0,1);
   sem_init(&db->feedsLock,0,0);
+}
+
+static void DestroySemaphores(rssDatabase *db)
+{
+  sem_destroy(&db->totalNetworkConnections);
+  sem_destroy(&db->stopWordsLock);
+  sem_destroy(&db->wordHashLock);
+  sem_destroy(&db->articlesSeenLock);
+  sem_destroy(&db->feedsLock);
 }
 
 /** 
@@ -384,8 +394,7 @@ static const char *const kItemTagPrefix = "<item";
 static bool GetNextItemTag(streamtokenizer *st)
 {
   char htmlTag[1024];
-  while (GetNextTag(st, htmlTag, sizeof(htmlTag))) {
-    
+  while (GetNextTag(st, htmlTag, sizeof(htmlTag))) {    
     if (strncasecmp(htmlTag, kItemTagPrefix, strlen(kItemTagPrefix)) == 0) {
       return true;
     }
