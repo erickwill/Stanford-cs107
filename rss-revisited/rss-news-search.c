@@ -1,9 +1,3 @@
-/*********************
-* RSS-news-search
-* This code originally written in Spring 2008 for Stanford's CS107
-* Code skeleton written by class TAs and professor, details filled out by me
-*********************/
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
