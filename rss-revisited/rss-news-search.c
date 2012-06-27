@@ -32,7 +32,7 @@ typedef struct {
   sem_t stopWordsLock;
   sem_t wordHashLock;
   sem_t articlesSeenLock;
-  sem_t feedsLock;
+  sem_t feedsLock; // wait for feeds to parse before queries are allowed
   sem_t totalNetworkConnections;
 }rssDatabase;
 
@@ -231,7 +231,7 @@ static void BuildStopWordsHashset(hashset *stopWords, const char *stopWordsFileN
 typedef struct {
   const char *remoteDocumentName;
   rssDatabase *db;
-  bool needToFreeConnection;
+  bool needToFreeConnection; // stops deadlock on recursive redirects
 }feedPackage;
 
 static void BuildIndices(const char *feedsFileName, rssDatabase *db)
@@ -250,20 +250,23 @@ static void BuildIndices(const char *feedsFileName, rssDatabase *db)
   while (STSkipUntil(&st, ":") != EOF) { // ignore everything up to the first semicolon of the line
     STSkipOver(&st, ": ");		 // now ignore the semicolon and any whitespace directly after it
     STNextToken(&st, remoteFileName, sizeof(remoteFileName));
-    feedPackage fp;
+    feedPackage fp; // struct for pthread args
     fp.remoteDocumentName = strdup(remoteFileName);
     fp.needToFreeConnection = true;
     fp.db = db;
     VectorAppend(&feeds,&fp);
   }
 
-  pthread_t thread[VectorLength(&feeds)];
-  for (int i = 0; i < VectorLength(&feeds); i++) {
-    //    pthread_t thread;
+  int numFeeds = VectorLength(&feeds);
+
+  pthread_t thread[numFeeds];
+  for (int i = 0; i < numFeeds; i++) {
+    // spawn feed threads
     pthread_create(&thread[i],NULL,ProcessFeed,VectorNth(&feeds,i));
   }
   
-  for (int i = 0; i < VectorLength(&feeds); i++) {
+  // wait for feeds to finish parsing before program continues
+  for (int i = 0; i < numFeeds; i++) {
     sem_wait(&db->feedsLock);
   }
 
@@ -275,6 +278,7 @@ static void BuildIndices(const char *feedsFileName, rssDatabase *db)
 
 static void FreeFeedVector(void *elem)
 {
+  // need to free because we use strdup for feed url
   feedPackage fp = *(feedPackage*)elem;
   free((char*)fp.remoteDocumentName);
 }
@@ -307,6 +311,7 @@ static void *ProcessFeed(void *feedPack)
 
     case 301: 
     case 302:
+              // close network connection on redirect to prevent deadlock
               fp->remoteDocumentName = urlconn.newUrl;
 	      URLConnectionDispose(&urlconn);
 	      URLDispose(&u);
@@ -319,14 +324,14 @@ static void *ProcessFeed(void *feedPack)
               break;
   };
 
-  if(fp->needToFreeConnection) {
+  if(fp->needToFreeConnection) { // check if connection already disposed from redirect
     URLConnectionDispose(&urlconn);
     URLDispose(&u);
     sem_post(&fp->db->totalNetworkConnections);
   }
 
-  sem_post(&fp->db->feedsLock);
-  pthread_detach(pthread_self());
+  sem_post(&fp->db->feedsLock); // signal calling function to continue program
+  pthread_detach(pthread_self()); // detach for memory cleanup
   pthread_exit(NULL);
 }
 
@@ -444,6 +449,7 @@ static void ProcessSingleNewsItem(streamtokenizer *st, rssDatabase *db)
   
   if (strncmp(articleURL, "", sizeof(articleURL)) == 0) return; // punt, since it's not going to take us anywhere
 
+  // need bool for network connection management
   ParseArticle(articleTitle,articleDescription,articleURL,db,true);
 }
 
@@ -506,7 +512,7 @@ typedef struct {
   rssDatabase *db;
   article currArt;
   streamtokenizer st;
-  sem_t scanArticleLock;
+  sem_t scanArticleLock; // lock for streamtokenizer so we don't dispose it before we finish parsing article
 }scanArticlePackage;
 
 static void ParseArticle(const char *articleTitle,const char *articleDescription,
@@ -519,7 +525,7 @@ static void ParseArticle(const char *articleTitle,const char *articleDescription
   URLNewAbsolute(&u,articleURL);
   URLConnectionNew(&urlconn, &u);
 
-  article currArt;
+  article currArt; // current article to parse
   currArt.server = strdup(u.serverName);
   currArt.title = strdup(articleTitle);
   currArt.url = strdup(articleURL);
@@ -545,14 +551,14 @@ static void ParseArticle(const char *articleTitle,const char *articleDescription
 		}
       case 301:
       case 302: // just pretend we have the redirected URL all along,though index using the new URL
-	{
+	{       // close network connection on redirect to prevent deadlock
 	        const char *redirect = strdup(urlconn.newUrl);
 	        URLConnectionDispose(&urlconn);
                 URLDispose(&u);
                 sem_post(&db->totalNetworkConnections);
 		needToFreeConnection = false;
 	        ParseArticle(articleTitle,articleDescription,redirect,db,true);
-		free((char*)redirect);
+		free((char*)redirect); // free redirect url string
 		ArticleFree(&currArt);
 		break;
 	}
@@ -561,6 +567,7 @@ static void ParseArticle(const char *articleTitle,const char *articleDescription
 		ArticleFree(&currArt);
 	        break;
   }
+
   if(needToFreeConnection) {
     URLConnectionDispose(&urlconn);
     URLDispose(&u);
@@ -576,7 +583,7 @@ void ParseArticleHelper(article *currArt, urlconnection *urlconn, url *u, rssDat
   sem_post(&db->articlesSeenLock);
   STNew(&st, urlconn->dataStream, kTextDelimiters, false);
   
-  scanArticlePackage scanPack;
+  scanArticlePackage scanPack; // struct for ScanArticle thread args
   sem_init(&scanPack.scanArticleLock,0,0);
   scanPack.db = db;
   scanPack.st = st;
@@ -620,7 +627,7 @@ static void *ScanArticle(void *scanPackage)
     }
   }
   sem_post(&scanPack->scanArticleLock);
-  pthread_detach(pthread_self());
+  pthread_detach(pthread_self()); // detach for memory cleanup
   pthread_exit(NULL);
 }
 
