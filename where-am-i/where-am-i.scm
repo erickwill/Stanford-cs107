@@ -137,10 +137,10 @@
 ;; cons'ed to the front of it.  
 ;; 
 
-(define (partition pivot num-list)
+(define (partition pivot num-list comp)
   (if (null? num-list) '(() ())
-      (let ((split-of-rest (partition pivot (cdr num-list))))
-	(if (< (car num-list) pivot)
+      (let ((split-of-rest (partition pivot (cdr num-list) comp)))
+	(if (comp (car num-list) pivot)
 	    (list (cons (car num-list) (car split-of-rest)) (cadr split-of-rest))
 	    (list (car split-of-rest) (cons (car num-list) (car (cdr split-of-rest))))))))
 
@@ -156,12 +156,12 @@
 ;; together in the proper order.
 ;;
 
-(define (quicksort num-list)
+(define (quicksort num-list comp)
   (if (<= (length num-list) 1) num-list
-      (let ((split (partition (car num-list) (cdr num-list))))
-	(append (quicksort (car split)) 
+      (let ((split (partition (car num-list) (cdr num-list) comp)))
+	(append (quicksort (car split) comp) 
 		(list (car num-list)) 
-		(quicksort (cadr split))))))
+		(quicksort (cadr split) comp)))))
 
 ;;
 ;; Function: remove
@@ -188,12 +188,10 @@
   (if (or (null? distances) (null? stars)) '(())
       (apply append 
 	     (map (lambda (star)
-		    (map (lambda (pair) 
-			   (cons (list (car distances) star) pair))
-			 (all-guesses (cdr distances) (remove star stars))
-			 )
-		    )
-		  stars))))
+             (map (lambda (pair) 
+                  (cons (list (car distances) star) pair))
+            (all-guesses (cdr distances) (remove star stars))))
+         stars))))
 
 (define *distances-1* '(2.65 5.55 5.25))
 (define *stars-1* '((0 0) (4 6) (10 0) (7 4) (12 5)))
@@ -201,11 +199,100 @@
 (define *distances-2* '(2.5 11.65 7.75))
 (define *stars-2* '((0 0) (4 4) (10 0)))
 
-;; 
-;; Include your code below.. make sure
-;; write and test each function independently.  This
-;; will require that you repeatedly type in
-;; (load "where-am-i.scm") at the command prompt, allowing
-;; it to override exisiting definitions and including
-;; the most recently implemented into the lot.
 ;;
+;; Function: intersection-points
+;; -----------------------------
+;; Takes a list of circles and returns a list of 
+;; all the points where the circles intersect.
+;; 
+
+(define (intersection-points circles)
+  (if (null? circles) '()
+    (append 
+      (apply append
+        (map (lambda (elem)
+               (intersect elem (car circles)))
+          (cdr circles)))
+	    (intersection-points (cdr circles)))))
+
+;;
+;; Function: distance-product
+;; --------------------------
+;; Takes a point and a list of points and returns 
+;; the product of the distances between that point and all the points in the 
+;; list. The point itself may be in the list.  In that case, it should be 
+;; removed so that it doesn't force the product to be zero.
+;;
+
+(define (distance-product pt pts-list)
+  (apply *(map (lambda (x)
+                  (let ((distance (dist pt x)))
+                  (if (= distance 0) 1 distance))) 
+                pts-list)))
+                
+;;
+;; Function: rate-points
+;; ---------------------
+;; Takes a list of points and returns a list where each point is annotated to
+;; show its distance-product from the other points.
+;;
+
+(define (rate-points points-list)
+  (map (lambda (elem)
+          (list (distance-product elem points-list) elem)) 
+        points-list))
+
+;;
+;; Function compare-points<?
+;; -----------------------
+;; Takes two rated points and returns the less-than comparison.
+;;
+
+(define (compare-points<? pt1 pt2)
+  (< (car pt1) (car pt2)))
+
+        
+;;
+;; Function: sort-points
+;; ---------------------
+;; Takes a list of rated points, and sorts them in 
+;; ascending order of rating
+;;
+
+(define (sort-points points-list)
+ (quicksort points-list compare-points<?))
+ 
+ ;;
+ ;; Function: remove-rating
+ ;; -----------------------
+ ;; Takes a list of rated points and returns the list
+ ;; without the rating.
+ ;;
+ 
+(define (remove-rating points-list)
+  (apply append 
+    (map (lambda (elem)(cdr elem)) 
+      points-list)))
+      
+ ;; 
+ ;; Function: clumped-points
+ ;; ------------------------
+ ;; takes a list of points, rates them, sorts them, and then returns 
+ ;; the half of the points with the smallest ratings.  
+ ;;
+ 
+(define (clumped-points points-list)
+  (remove-rating (prefix-of-list (sort-points (rate-points points-list)) 
+                   (quotient (length points-list) 2))))
+
+;;
+;; Function: average-point
+;; -----------------------
+;; Takes a list of points and averages them all down to a single 
+;; point. The average point is obtained by averaging all the x values 
+;; to get an x value and all the y values to get a y value.
+;; Also includes the distance rating indicating how far the average 
+;; point was from all the points. 
+;;
+
+;;(define (average-point points-list)
