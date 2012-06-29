@@ -225,10 +225,11 @@
 ;;
 
 (define (distance-product pt pts-list)
-  (apply *(map (lambda (x)
-                  (let ((distance (dist pt x)))
-                  (if (= distance 0) 1 distance))) 
-                pts-list)))
+  (apply *
+    (map (lambda (x)
+           (let ((distance (dist pt x)))
+                   (if (= distance 0) 1 distance))) 
+          pts-list)))
                 
 ;;
 ;; Function: rate-points
@@ -239,13 +240,15 @@
 
 (define (rate-points points-list)
   (map (lambda (elem)
-          (list (distance-product elem points-list) elem)) 
+          (list (distance-product elem points-list) 
+                 elem)) 
         points-list))
 
 ;;
 ;; Function compare-points<?
 ;; -----------------------
-;; Takes two rated points and returns the less-than comparison.
+;; Takes two rated points and returns the less-than comparison
+;; of the two rating values.
 ;;
 
 (define (compare-points<? pt1 pt2)
@@ -271,8 +274,9 @@
  
 (define (remove-rating points-list)
   (apply append 
-    (map (lambda (elem)(cdr elem)) 
-      points-list)))
+    (map (lambda (elem)
+           (cdr elem)) 
+          points-list)))
       
  ;; 
  ;; Function: clumped-points
@@ -282,8 +286,11 @@
  ;;
  
 (define (clumped-points points-list)
-  (remove-rating (prefix-of-list (sort-points (rate-points points-list)) 
-                   (quotient (length points-list) 2))))
+  (remove-rating 
+    (prefix-of-list 
+      (sort-points 
+        (rate-points points-list)) 
+          (quotient (length points-list) 2))))
 
 ;;
 ;; Function: average-point
@@ -295,4 +302,46 @@
 ;; point was from all the points. 
 ;;
 
-;;(define (average-point points-list)
+(define (average-point point-list)
+  (let ((avg-x (list (/ (apply + 
+                          (map (lambda(elem) (x elem))
+                                point-list)) 
+                        (length point-list))))
+        (avg-y (list (/ (apply + 
+                          (map (lambda(elem) (y elem))
+                                point-list)) 
+                        (length point-list)))))
+    (append (list (distance-product 
+                    (append avg-x avg-y) point-list))
+	  (list (append avg-x avg-y)))))
+
+;;
+;; Function: best-estimate
+;; -----------------------
+;; Takes a guess (a list of circles), computes all the points of 
+;; intersection, winnows those points down to those which are most 
+;; clumped, and returns their average point.
+;;
+
+(define (best-estimate guess-circles)
+  (average-point
+    (clumped-points 
+      (remove-rating
+        (sort-points
+          (rate-points
+            (intersection-points guess-circles)))))))
+
+;;
+;; Function: where-am-i
+;; --------------------
+;; Takes a list of distances and a list of points.
+;; Should compute all of the possible guesses. The result is a list of 
+;; the top 5 rated points.  The first point is where you are, the rest 
+;; are your other possible locations, in decreasing order of likelihood.
+;;
+
+(define (where-am-i distances locations)
+  (prefix-of-list
+    (sort-points 
+      (map best-estimate (all-guesses distances locations)))
+    5))
