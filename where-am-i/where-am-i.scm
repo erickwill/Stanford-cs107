@@ -212,7 +212,7 @@
       (apply append
         (map (lambda (elem)
                (intersect elem (car circles)))
-          (cdr circles)))
+             (cdr circles)))
 	    (intersection-points (cdr circles)))))
 
 ;;
