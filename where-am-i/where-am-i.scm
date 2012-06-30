@@ -53,19 +53,19 @@
 
 (define (add v1 v2)
   (list (+ (car v1) (car v2))
-	(+ (cadr v1) (cadr v2))))
+  (+ (cadr v1) (cadr v2))))
 
 (define (sub v1 v2)
   (list (- (car v1) (car v2))
-	(- (cadr v1) (cadr v2))))
+  (- (cadr v1) (cadr v2))))
 
 (define (len v)
   (sqrt (+ (* (car v) (car v))
-	   (* (cadr v) (cadr v)))))
+     (* (cadr v) (cadr v)))))
 
 (define (scale v factor)
   (list (* (car v) factor) 
-	(* (cadr v) factor)))
+  (* (cadr v) factor)))
 
 (define (normalize v)
   (scale (list (- (cadr v)) (car v)) (/ (len v))))
@@ -91,17 +91,17 @@
   (if (equal? (center circle1) (center circle2))
       (error "Intersect cannont handle circles with the same center point.")
       (let* ((c1 (center circle1))
-	     (r1 (radius circle1))
-	     (c2 (center circle2))
-	     (r2 (radius circle2))
-	     (d (dist c1 c2)))
+       (r1 (radius circle1))
+       (c2 (center circle2))
+       (r2 (radius circle2))
+       (d (dist c1 c2)))
       ;; first check to see if the circles are too far apart to intersect,
       ;; or if one circle is within another.
-	(if (or (> d (+ r1 r2)) (> r1 (+ d r2)) (> r2 (+ d r1)))
-	    ;; if there is no real intersection, use the closest tangent points on each
-	    ;; circle.  This is the bastardization above.
-	    (list (add c1 (scale (sub c2 c1) (/ r1 d)))  ;; c1-> towards c2
-		  (add c2 (scale (sub c1 c2) (/ r2 d)))) ;; c2-> towards c1
+  (if (or (> d (+ r1 r2)) (> r1 (+ d r2)) (> r2 (+ d r1)))
+      ;; if there is no real intersection, use the closest tangent points on each
+      ;; circle.  This is the bastardization above.
+      (list (add c1 (scale (sub c2 c1) (/ r1 d)))  ;; c1-> towards c2
+      (add c2 (scale (sub c1 c2) (/ r2 d)))) ;; c2-> towards c1
     ;;otherwise the circles intersect normally, and I did some hairy
     ;;geometry to show that the following computes the two points
     ;;of intersection.
@@ -140,9 +140,9 @@
 (define (partition pivot num-list comp)
   (if (null? num-list) '(() ())
       (let ((split-of-rest (partition pivot (cdr num-list) comp)))
-	(if (comp (car num-list) pivot)
-	    (list (cons (car num-list) (car split-of-rest)) (cadr split-of-rest))
-	    (list (car split-of-rest) (cons (car num-list) (car (cdr split-of-rest))))))))
+  (if (comp (car num-list) pivot)
+      (list (cons (car num-list) (car split-of-rest)) (cadr split-of-rest))
+      (list (car split-of-rest) (cons (car num-list) (car (cdr split-of-rest))))))))
 
 ;;
 ;; Function: quicksort
@@ -159,9 +159,9 @@
 (define (quicksort num-list comp)
   (if (<= (length num-list) 1) num-list
       (let ((split (partition (car num-list) (cdr num-list) comp)))
-	(append (quicksort (car split) comp) 
-		(list (car num-list)) 
-		(quicksort (cadr split) comp)))))
+  (append (quicksort (car split) comp) 
+    (list (car num-list)) 
+    (quicksort (cadr split) comp)))))
 
 ;;
 ;; Function: remove
@@ -173,8 +173,8 @@
 
 (define (remove elem ls)
   (cond ((null? ls) '())
-	((equal? (car ls) elem) (remove elem (cdr ls)))
-	(else (cons (car ls) (remove elem (cdr ls))))))
+  ((equal? (car ls) elem) (remove elem (cdr ls)))
+  (else (cons (car ls) (remove elem (cdr ls))))))
                   
 ;; 
 ;; Function: all-guesses
@@ -187,7 +187,7 @@
 (define (all-guesses distances stars)
   (if (or (null? distances) (null? stars)) '(())
       (apply append 
-	     (map (lambda (star)
+       (map (lambda (star)
              (map (lambda (pair) 
                   (cons (list (car distances) star) pair))
             (all-guesses (cdr distances) (remove star stars))))
@@ -213,7 +213,7 @@
         (map (lambda (elem)
                (intersect elem (car circles)))
              (cdr circles)))
-	    (intersection-points (cdr circles)))))
+      (intersection-points (cdr circles)))))
 
 ;;
 ;; Function: distance-product
@@ -313,7 +313,7 @@
                         (length point-list)))))
     (append (list (distance-product 
                     (append avg-x avg-y) point-list))
-	  (list (append avg-x avg-y)))))
+    (list (append avg-x avg-y)))))
 
 ;;
 ;; Function: best-estimate
